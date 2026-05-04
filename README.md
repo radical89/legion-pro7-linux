@@ -42,7 +42,7 @@
 | 3 | [Fan control / DYTC power profiles](#3-fan-control--dytc-power-profiles-unavailable) | Medium | **Unavailable — no upstream fix** |
 | 4 | [NVIDIA RTX 5080 driver stability](#4-nvidia-rtx-5080-mobile--driver-595x-instability) | Medium | **Working but unstable — monitor** |
 | 5 | [Wi-Fi 7 suspend/resume](#5-wi-fi-7-be200--suspendresume-connection-drop) | Low | **Known risk — workaround exists** |
-| 6 | [Intel Arc iGPU driver (xe vs i915)](#6-intel-arc-xe2-igpu--i915-vs-xe-driver) | Low | **Working suboptimally — upgrade available** |
+| 6 | [Intel Arc iGPU driver (xe vs i915)](#6-intel-arc-xe2-igpu--i915-vs-xe-driver) | Low | **Working correctly on i915 — do not switch to xe yet** |
 | 7 | [BIOS updates on Linux](#7-bios-updates-on-linux) | Low | **Possible — tooling available** |
 
 ---
@@ -198,23 +198,23 @@ WantedBy=suspend.target hibernate.target hybrid-sleep.target
 
 ### 6. Intel Arc Xe2 iGPU — i915 vs xe Driver
 
-**Status:** Working. Suboptimal driver in use.
+**Status:** Working correctly on i915. Do not switch to xe yet.
 
-**Current state:** The iGPU (Intel Arc Xe2-LPG) is driven by the `i915` driver. It is loading Meteor Lake firmware (`mtl_dmc.bin`, `mtl_guc_70.bin`, etc.) — this is intentional because Arrow Lake shares the same display/media IP blocks as Meteor Lake. Both displays are functional.
+**Current state:** The iGPU is driven by `i915`, loading Meteor Lake firmware (`mtl_dmc.bin`, `mtl_guc_70.bin`, etc.) — this is intentional, not a bug. Arrow Lake shares the same display/media IP as Meteor Lake and `i915` uses those firmware paths deliberately. Both displays work correctly.
 
-**The case for switching to `xe`:**
-The `xe` kernel driver is Intel's modern replacement for `i915`, designed from the ground up for Xe-architecture GPUs. Benchmarks on Meteor Lake (the same IP as Arrow Lake's iGPU) show 20–50% compute uplift and double-digit gains in general graphics tasks versus `i915`. It enables GuC and HuC by default, improving hardware-accelerated video decode/encode (VA-API). `xe` is the driver that will receive future development; `i915` is in maintenance mode for new hardware.
+**Background — why xe exists:**
+`xe` is Intel's modern driver rewritten from scratch for Xe-architecture GPUs, and is Intel's strategic future. Intel officially made `xe` the default for **Lunar Lake and Battlemage (discrete)** in kernel 6.12. Arrow Lake is a transition case: `xe` support was added in kernel 6.8 but it is **not yet the default for Arrow Lake** and is still being actively debugged.
 
-**How to switch (test carefully):**
-```bash
-# Add to kernel parameters (e.g. in /etc/kernel/cmdline or GRUB):
-i915.force_probe=!0x7d55 xe.force_probe=0x7d55
-```
-Replace `0x7d55` with the actual PCI device ID from `lspci -nn | grep VGA | grep Intel`.
+**Why you should stay on i915 for now:**
+Benchmarks showing 20–50% compute uplift for `xe` are from **Meteor Lake** hardware (Phoronix, 2025) and do not directly apply to Arrow Lake. For Arrow Lake specifically, confirmed problems with `xe` as of 2026 include:
+- Hard lock freezes on boot ([GitHub issue](https://github.com/strongtz/i915-sriov-dkms/issues/358))
+- Low gaming FPS in CS2 ([CachyOS forum](https://discuss.cachyos.org/t/low-counter-strike-2-fps-on-intel-225h-arrow-lake-with-xe-driver/17979))
+- Vulkan compute producing garbage output on AI/ML workloads >3B parameters ([Ollama issue #13964](https://github.com/ollama/ollama/issues/13964))
+- VFIO/GPU passthrough failures
 
-**Known risk:** A small number of legacy OpenGL applications perform marginally worse on `xe` due to `i915`'s optimised paths for older code. Display tearing has been reported by some users. If issues arise, add `xe.enable_psr=0` to kernel parameters.
+**`i915` is not slow or legacy for this hardware.** It remains actively maintained and is the correct, stable choice for Arrow Lake in kernel 7.x.
 
-**Watch:** `xe` driver stability reports for Arrow Lake in CachyOS and Arch forums.
+**When to revisit:** Watch for Intel officially defaulting `xe` for Arrow Lake in a future kernel, or when the above issues are closed upstream. Check CachyOS and Arch forums before switching.
 
 ---
 
