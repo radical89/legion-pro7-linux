@@ -37,7 +37,7 @@
 
 | # | Component | Severity | Status |
 |---|---|---|---|
-| 1 | [Internal speakers (AW88399 amps)](#1-internal-speakers--aw88399-amplifier-firmware-missing) | High | **Broken — community fix available** |
+| 1 | [Internal speakers (AW88399 amps)](#1-internal-speakers--aw88399-amplifier-firmware-missing) | High | **Broken — community fix available; upstream submission imminent** |
 | 2 | [Keyboard RGB backlight](#2-keyboard-rgb-backlight--not-controllable-via-kernel) | Medium | **Broken — third-party fix available** |
 | 3 | [Fan control / DYTC power profiles](#3-fan-control--dytc-power-profiles-unavailable) | Medium | **Unavailable — no upstream fix** |
 | 4 | [NVIDIA RTX 5080 driver stability](#4-nvidia-rtx-5080-mobile--driver-595x-instability) | Medium | **Working but unstable — monitor** |
@@ -51,7 +51,9 @@
 
 ### 1. Internal Speakers — AW88399 Amplifier Firmware Missing
 
-**Status:** Broken. Community fix exists. Not yet upstream.
+**Status:** Broken. Community fix exists. Upstream kernel patch series in final preparation.
+
+> Last checked: 2026-05-10 — Upstream patch series v0.2.1 by marco-giunta is ready for ALSA mailing list submission, tested on Legion 16IAX10H and Y9000P IAX10, reviewed and approved by nadimkobeissi. CachyOS has already applied an earlier version to their custom kernel ([CachyOS commit a18eac7](https://github.com/CachyOS/linux/commit/a18eac772ea06572ace55264d20a8ac73079552d)). Fedora kernel builds available at [marco-giunta/legion-pro7-gen10-audio](https://github.com/marco-giunta/legion-pro7-gen10-audio) (latest: v7.0.4-200.legion.fc44, 2026-05-09). Patches also confirmed working on Linux 6.19.13 and 6.19.14.
 
 **Symptoms from `dmesg`/`journalctl`:**
 ```
@@ -77,7 +79,7 @@ snd_hda_codec_alc269 hdaudioC1D0: ALC287: SKU not ready 0x411111f0
 - Legion 5i Gen 9 (16IRX9)
 - Legion Y9000P (IAX10H)
 
-**Why it isn't fixed upstream:** `aw88399_acf.bin` is proprietary Awinic firmware. It must be extracted from the Windows driver package. Additionally, a kernel patch to `patch_realtek.c` is required to wire the ALC287 codec to the AW88399 amplifiers for the SSID `17aa:3906`. Neither the firmware nor the patch has been accepted into linux-firmware or the mainline kernel as of 2026-05-04.
+**Why it isn't fixed upstream:** `aw88399_acf.bin` is proprietary Awinic firmware. It must be extracted from the Windows driver package. Additionally, a kernel patch to `patch_realtek.c` is required to wire the ALC287 codec to the AW88399 amplifiers for the SSID `17aa:3906`. The firmware remains outside linux-firmware, but the kernel driver patch series is now being prepared for upstream submission to the ALSA mailing list (see tracking below).
 
 **Community fix:**
 > **[nadimkobeissi/16iax10h-linux-sound-saga](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga)**
@@ -86,14 +88,21 @@ snd_hda_codec_alc269 hdaudioC1D0: ALC287: SKU not ready 0x411111f0
 >
 > The fix involves:
 > 1. Installing the extracted `aw88399_acf.bin` firmware to `/lib/firmware/`
-> 2. Applying a kernel patch to the audio subsystem (targets Linux 7.0 and 6.19.11)
+> 2. Applying a kernel patch to the audio subsystem (targets Linux 7.0 and 6.19.11+)
 > 3. Enabling `CONFIG_SND_HDA_SCODEC_AW88399=m` and `CONFIG_SND_SOC_AW88399=m`
 > 4. Rebuilding the kernel and initramfs
 > 5. Rebuilding NVIDIA DKMS modules against the new kernel
 >
 > Full instructions are in that repo's README.
 
+**Upstream patch series (new — 2026-04/05):**
+> **[marco-giunta/legion-pro7-gen10-audio](https://github.com/marco-giunta/legion-pro7-gen10-audio)** — A proper upstream kernel patch series (v0.2.1) following the `cs35l41` library pattern, with a per-device `bsts_unreliable` quirk flag. Reviewed by nadimkobeissi (2026-05-09) and ready for submission to the ALSA mailing list. Confirmed working on kernel 7.0.3 and 7.0.4 on the Intel variant (16IAX10H) and the Lenovo Y9000P IAX10. Fedora RPM kernel builds are provided for easy testing. CachyOS has already applied an earlier version to their custom kernel (`linux-cachyos`).
+>
+> Note: `aw88399_acf.bin` firmware is still required separately (extracted from Windows driver) — the upstream kernel patch alone is not sufficient until Awinic or Lenovo submits the firmware to `linux-firmware`.
+
 **Tracking:**
+- [sound-saga issue #55](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga/issues/55) — Upstream patch series discussion (active, last updated 2026-05-09)
+- [sound-saga PR #54](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga/pull/54) — Patch for Linux 6.19.13 (confirmed working on 6.19.13 and 6.19.14)
 - [CachyOS issue #687](https://github.com/CachyOS/linux-cachyos/issues/687) — "Internal speakers tinny sound (aw88399 quirk needed)"
 - [CachyOS issue #707](https://github.com/CachyOS/linux-cachyos/issues/707) — "Add audio support (AW88399) for Legion Pro 7i Gen 10" (closed as duplicate of #618)
 - [CachyOS issue #618](https://github.com/CachyOS/linux-cachyos/issues/618) — Central tracking issue for upstream integration
@@ -104,6 +113,8 @@ snd_hda_codec_alc269 hdaudioC1D0: ALC287: SKU not ready 0x411111f0
 ### 2. Keyboard RGB Backlight — Not Controllable via Kernel
 
 **Status:** Broken via standard kernel interface. Third-party fixes available.
+
+> Last checked: 2026-05-10 — LenovoLegionLinux updated 2026-05-07 with fixes for ACPI access on kernel 7.x (virtual platform device change); module should now load cleanly on kernel 7.0+. 83F5 is still not in the upstream allowlist (latest entry is R3CN for LOQ 15IRX10); `force=1` parameter remains required. Issue #385 still open, no resolution since 2026-03-04.
 
 **Symptoms:**
 ```
@@ -131,7 +142,9 @@ No `/sys/class/leds/kbd_backlight` entry is created. The Legion Gen 10 uses an I
 
 ### 3. Fan Control / DYTC Power Profiles Unavailable
 
-**Status:** Unavailable. No upstream fix as of 2026-05-04.
+**Status:** Unavailable. No upstream fix as of 2026-05-10.
+
+> Last checked: 2026-05-10 — No change. DYTC interface remains unavailable on Linux for Arrow Lake-HX. No kernel patches or Lenovo firmware updates found addressing this.
 
 **Symptom:**
 ```
@@ -153,6 +166,8 @@ Lenovo's Dynamic Thermal Control (DYTC) interface — which backs the Performanc
 
 **Status:** GPU is functional (nvidia-smi, CUDA 13.2 confirmed). Driver has reported instability.
 
+> Last checked: 2026-05-10 — 595.71.05 remains the latest stable release (2026-04-28). A 595.44.07 Vulkan Developer Beta was released 2026-05-08 but is pre-release and not recommended for daily use. No 600.x series has been released yet. CachyOS issue #771 is closed; the maintainer's recommended workaround is to downgrade to 590.48.01 using the CachyOS archive (command in the issue).
+
 **Current driver:** `595.71.05` (open kernel module, `linux-cachyos-nvidia-open 7.0.3-1`)
 
 **What works:** GPU detection, CUDA, PRIME render offload (`prime-run`), HDMI audio, basic 3D.
@@ -171,6 +186,8 @@ Lenovo's Dynamic Thermal Control (DYTC) interface — which backs the Performanc
 ### 5. Wi-Fi 7 (BE200) — Suspend/Resume Connection Drop
 
 **Status:** Wi-Fi loads and operates correctly during normal use. Suspend/resume is a known risk.
+
+> Last checked: 2026-05-10 — No targeted fix found for BE200 suspend/resume drops. Recent iwlwifi commits (late April 2026) addressed EMLSR/TDLS connection stability and RX handling but no commit specifically targeting the post-resume reconnect failure was found. Workaround (NetworkManager restart via systemd service) remains the recommended mitigation.
 
 **Current state:** `iwlwifi` loaded firmware `gl-c0-fm-c0-c101.ucode` successfully at boot. 6 GHz band enabled (region AU). Interface `wlan0` is UP. Not yet tested across a suspend/resume cycle on this machine.
 
@@ -200,6 +217,8 @@ WantedBy=suspend.target hibernate.target hybrid-sleep.target
 
 **Status:** Working correctly on i915. Do not switch to xe yet.
 
+> Last checked: 2026-05-10 — No change. xe driver is still not the default for Arrow Lake. Active xe development commits found (GUC, HDCP, memory management) but no commits switching Arrow Lake from i915 to xe. Known issues (boot freezes, gaming FPS regression, Vulkan compute on AI workloads) remain unresolved upstream. Stay on i915.
+
 **Current state:** The iGPU is driven by `i915`, loading Meteor Lake firmware (`mtl_dmc.bin`, `mtl_guc_70.bin`, etc.) — this is intentional, not a bug. Arrow Lake shares the same display/media IP as Meteor Lake and `i915` uses those firmware paths deliberately. Both displays work correctly.
 
 **Background — why xe exists:**
@@ -221,6 +240,8 @@ Benchmarks showing 20–50% compute uplift for `xe` are from **Meteor Lake** har
 ### 7. BIOS Updates on Linux
 
 **Status:** Possible via community tooling.
+
+> Last checked: 2026-05-10 — No new BIOS release found for the 16IAX10H (Q7CN). Run `fwupdmgr get-updates` to check for LVFS coverage. No change to tooling situation.
 
 Lenovo distributes BIOS updates as Windows `.exe` files. On Linux, `fwupd` covers many Lenovo models via the LVFS (Linux Vendor Firmware Service), but coverage for the 16IAX10H Gen 10 has been incomplete.
 
@@ -264,6 +285,7 @@ The following was confirmed working on this machine via live hardware scan and b
 
 ### Audio Fix
 - **[nadimkobeissi/16iax10h-linux-sound-saga](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga)** — The primary community audio fix. Contains firmware, kernel patches, and full install instructions.
+- **[marco-giunta/legion-pro7-gen10-audio](https://github.com/marco-giunta/legion-pro7-gen10-audio)** — Upstream-quality kernel patch series (v0.2.1, May 2026) for ALSA submission. Provides Fedora RPM kernel builds for easy testing. See [sound-saga issue #55](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga/issues/55) for the full upstream submission discussion.
 
 ### Hardware Control (fans, LEDs, power modes)
 - **[johnfanv2/LenovoLegionLinux](https://github.com/johnfanv2/LenovoLegionLinux)** — DKMS kernel module for fan control, keyboard backlight, battery conservation, and power mode switching. Works on 16IAX10H with `force=1` ([issue #385](https://github.com/johnfanv2/LenovoLegionLinux/issues/385)).
@@ -298,4 +320,4 @@ The human owner of this machine reviewed the content but did not write it. Treat
 
 ---
 
-*Last updated: 2026-05-04 | Kernel tested: 7.0.3-1-cachyos | Distro: CachyOS*
+*Last updated: 2026-05-10 | Kernel tested: 7.0.3-1-cachyos | Distro: CachyOS*
