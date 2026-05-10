@@ -297,6 +297,9 @@ The following was confirmed working on this machine via live hardware scan and b
 - **[nadimkobeissi/16iax10h-linux-sound-saga](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga)** — The primary community audio fix. Contains firmware, kernel patches, and full install instructions.
 - **[marco-giunta/legion-pro7-gen10-audio](https://github.com/marco-giunta/legion-pro7-gen10-audio)** — Upstream-quality kernel patch series (v0.2.1, May 2026) for ALSA submission. Provides Fedora RPM kernel builds for easy testing. See [sound-saga issue #55](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga/issues/55) for the full upstream submission discussion.
 
+### GPU Power State Monitor
+- **[radical89/nvidia-state-tray](https://github.com/radical89/nvidia-state-tray)** — System tray indicator showing RTX 5080 D3cold vs active state with live watt display. Confirms RTD3 is working at a glance.
+
 ### Hardware Control (fans, LEDs, power modes)
 - **[johnfanv2/LenovoLegionLinux](https://github.com/johnfanv2/LenovoLegionLinux)** — DKMS kernel module for fan control, keyboard backlight, battery conservation, and power mode switching. Works on 16IAX10H with `force=1` ([issue #385](https://github.com/johnfanv2/LenovoLegionLinux/issues/385)).
 - **[alstergee/legion-spectrum-control](https://github.com/alstergee/legion-spectrum-control)** — Per-key RGB control for Gen 10 ITE 8258 keyboard controller.
