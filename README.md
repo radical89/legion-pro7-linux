@@ -37,7 +37,7 @@
 
 | # | Component | Severity | Status |
 |---|---|---|---|
-| 1 | [Internal speakers (AW88399 amps)](#1-internal-speakers--aw88399-amplifier-firmware-missing) | High | **Broken — community fix available; upstream submission imminent** |
+| 1 | [Internal speakers (AW88399 amps)](#1-internal-speakers--aw88399-amplifier-firmware-missing) | High | **Fixed on CachyOS 7.0.5 — firmware file install required** |
 | 2 | [Keyboard RGB backlight](#2-keyboard-rgb-backlight--not-controllable-via-kernel) | Medium | **Broken — third-party fix available** |
 | 3 | [Fan control / DYTC power profiles](#3-fan-control--dytc-power-profiles-unavailable) | Medium | **Unavailable — no upstream fix** |
 | 4 | [NVIDIA RTX 5080 driver stability](#4-nvidia-rtx-5080-mobile--driver-595x-instability) | Medium | **Working but unstable — monitor** |
@@ -51,9 +51,9 @@
 
 ### 1. Internal Speakers — AW88399 Amplifier Firmware Missing
 
-**Status:** Broken. Community fix exists. Upstream kernel patch series in final preparation.
+**Status:** ✅ Fixed on CachyOS 7.0.5. Kernel driver patch is included. Only the firmware file must be installed manually.
 
-> Last checked: 2026-05-10 — Upstream patch series v0.2.1 by marco-giunta is ready for ALSA mailing list submission, tested on Legion 16IAX10H and Y9000P IAX10, reviewed and approved by nadimkobeissi. CachyOS has already applied an earlier version to their custom kernel ([CachyOS commit a18eac7](https://github.com/CachyOS/linux/commit/a18eac772ea06572ace55264d20a8ac73079552d)). Fedora kernel builds available at [marco-giunta/legion-pro7-gen10-audio](https://github.com/marco-giunta/legion-pro7-gen10-audio) (latest: v7.0.4-200.legion.fc44, 2026-05-09). Patches also confirmed working on Linux 6.19.13 and 6.19.14.
+> Last checked: 2026-05-10 — **CONFIRMED WORKING** on CachyOS 7.0.5-2 (this machine). The kernel driver patch shipped in 7.0.5; only `aw88399_acf.bin` was missing. Installing the firmware and rebuilding the initramfs restored full speaker output. Upstream patch series v0.2.1 by marco-giunta is separately being prepared for ALSA mailing list submission.
 
 **Symptoms from `dmesg`/`journalctl`:**
 ```
@@ -79,7 +79,16 @@ snd_hda_codec_alc269 hdaudioC1D0: ALC287: SKU not ready 0x411111f0
 - Legion 5i Gen 9 (16IRX9)
 - Legion Y9000P (IAX10H)
 
-**Why it isn't fixed upstream:** `aw88399_acf.bin` is proprietary Awinic firmware. It must be extracted from the Windows driver package. Additionally, a kernel patch to `patch_realtek.c` is required to wire the ALC287 codec to the AW88399 amplifiers for the SSID `17aa:3906`. The firmware remains outside linux-firmware, but the kernel driver patch series is now being prepared for upstream submission to the ALSA mailing list (see tracking below).
+**Quick fix for CachyOS 7.0.5+ users:** The kernel driver patch is already included. You only need to install the firmware file and rebuild initramfs:
+
+```bash
+sudo curl -o /lib/firmware/aw88399_acf.bin \
+  https://raw.githubusercontent.com/nadimkobeissi/16iax10h-linux-sound-saga/main/fix/firmware/aw88399_acf.bin
+limine-mkinitcpio   # CachyOS uses Limine; other distros: sudo mkinitcpio -P or sudo dracut --regenerate-all
+sudo reboot
+```
+
+**Why the firmware isn't upstream:** `aw88399_acf.bin` is proprietary Awinic firmware that must be extracted from the Windows driver package. The kernel driver patch series is being prepared for upstream submission to the ALSA mailing list (see tracking below), but the firmware must be separately submitted to `linux-firmware` by Awinic or Lenovo.
 
 **Community fix:**
 > **[nadimkobeissi/16iax10h-linux-sound-saga](https://github.com/nadimkobeissi/16iax10h-linux-sound-saga)**
@@ -271,6 +280,7 @@ The following was confirmed working on this machine via live hardware scan and b
 | Touchpad (ELAN06FA:00) | I2C HID multitouch. |
 | Webcam — internal (Bison) | `uvcvideo`. |
 | Webcam — external (Logitech C922) | `uvcvideo` + `snd-usb-audio`. |
+| Internal speakers | AW88399 amps + ALC287. Working on CachyOS 7.0.5+ after installing `aw88399_acf.bin` firmware. |
 | Headphone jack | ALC287 Analog, PipeWire 1.6.4. |
 | HDMI audio | Both NVIDIA HDMI and Intel PCH HDMI. LG ULTRAWIDE detected by name. |
 | Thunderbolt 4 | `thunderbolt` driver, no errors. |
