@@ -11,6 +11,10 @@ Usage (RT priority recommended for the stall canary):
 Log lines:
     09:48:59.240 STALL 4.32ms
     09:48:59.900 XRUN node=Firefox err=222 (+1)
+    09:49:00.100 GPU pstate=P0 sm=2175MHz mem=10251MHz pw=150.4W util=67%
+
+Note: the GPU sampler itself costs ~1 stall per query (every NVML read
+stalls the bus on this platform) — negligible against 20-30/s storms.
 
 History: built 2026-07-19 after proving stalls (278 in 60 s) and xruns
 (zero in the same window) are uncorrelated — blips arrive in bursts and
@@ -39,24 +43,52 @@ def canary(stop: threading.Event, threshold_ms: float, out) -> None:
 
 
 def xrun_sampler(stop: threading.Event, out) -> None:
+    # pw-top's first batch frame carries stale/zero ERR counters; request two
+    # frames and read only the last one.
     prev: dict[str, int] = {}
     while not stop.is_set():
         try:
-            res = subprocess.run(["pw-top", "-b", "-n", "1"],
+            res = subprocess.run(["pw-top", "-b", "-n", "2"],
                                  capture_output=True, text=True, timeout=5)
+            frames: list[list[str]] = []
             for line in res.stdout.splitlines():
+                if line.startswith("S ") and " ID " in line:
+                    frames.append([])
+                elif frames:
+                    frames[-1].append(line)
+            for line in (frames[-1] if frames else []):
                 parts = line.split()
                 if len(parts) < 10 or parts[0] != "R":
                     continue
-                name = " ".join(parts[10:]).lstrip("+ ").strip() or parts[1]
+                # columns: S ID QUANT RATE WAIT BUSY W/Q B/Q ERR FMT CH RATE NAME
+                # key by node ID: multiple nodes can share a name (e.g. "Pal")
+                nid = parts[1]
+                name = " ".join(p for p in parts[12:] if p != "+") or nid
                 err = int(parts[8])
-                if name in prev and err > prev[name]:
-                    print(f"{now()} XRUN node={name} err={err} "
-                          f"(+{err - prev[name]})", file=out, flush=True)
-                prev[name] = err
+                if nid in prev and err > prev[nid]:
+                    print(f"{now()} XRUN node={name}({nid}) err={err} "
+                          f"(+{err - prev[nid]})", file=out, flush=True)
+                prev[nid] = err
         except (subprocess.SubprocessError, ValueError, OSError):
             pass
         stop.wait(0.5)
+
+
+def gpu_sampler(stop: threading.Event, out) -> None:
+    query = ("pstate,clocks.sm,clocks.mem,power.draw,utilization.gpu")
+    while not stop.is_set():
+        try:
+            res = subprocess.run(
+                ["nvidia-smi", f"--query-gpu={query}",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=3)
+            v = [x.strip() for x in res.stdout.strip().split(",")]
+            if len(v) == 5:
+                print(f"{now()} GPU pstate={v[0]} sm={v[1]}MHz mem={v[2]}MHz "
+                      f"pw={v[3]}W util={v[4]}%", file=out, flush=True)
+        except (subprocess.SubprocessError, OSError):
+            pass
+        stop.wait(2.0)
 
 
 def main() -> None:
@@ -73,6 +105,7 @@ def main() -> None:
     threads = [
         threading.Thread(target=canary, args=(stop, args.threshold_ms, out), daemon=True),
         threading.Thread(target=xrun_sampler, args=(stop, out), daemon=True),
+        threading.Thread(target=gpu_sampler, args=(stop, out), daemon=True),
     ]
     for t in threads:
         t.start()
