@@ -44,6 +44,7 @@
 | 5 | [Wi-Fi 7 suspend/resume](#5-wi-fi-7-be200--suspendresume-connection-drop) | Low | **Known risk — workaround exists** |
 | 6 | [Intel Arc iGPU driver (xe vs i915)](#6-intel-arc-xe2-igpu--i915-vs-xe-driver) | Low | **Working correctly on i915 — do not switch to xe yet** |
 | 7 | [BIOS updates on Linux](#7-bios-updates-on-linux) | Low | **Possible — tooling available** |
+| 8 | [Audio blips / GPU mem-clock stalls](#8-audio-blips--gpu-memory-clock-switches-stall-the-machine) | High | **Root-caused — workaround: pin mem clock while gaming** |
 
 ---
 
@@ -144,6 +145,29 @@ No `/sys/class/leds/kbd_backlight` entry is created. The Legion Gen 10 uses an I
 > **[alstergee/legion-spectrum-control](https://github.com/alstergee/legion-spectrum-control)**
 >
 > A CLI + web UI tool (served at `localhost:5555`) for per-key RGB customisation on Legion Gen 10. Supports rainbow wave, colour pulse, static zones, and hardware monitoring integration. Targets the ITE 8258 controller directly.
+
+---
+
+### 8. Audio Blips — GPU Memory-Clock Switches Stall the Machine
+
+**Status:** Root-caused 2026-07-19. Local workaround (pin the memory clock while gaming); upstream driver bug remains open.
+
+> Last checked: 2026-07-19 — diagnosed live over two sessions (2026-07-17 initial, 2026-07-19 correction). Reported upstream as [open-gpu-kernel-modules#1248](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1248) (issue text predates the full root cause; update pending).
+
+**Symptoms:** Audio blips/ticks during gaming on any output (Bluetooth and internal speakers), most audible on browser audio streams; occasional frame hitches. PipeWire shows xrun bursts on client stream nodes (`pw-top` ERR column) while the sink driver node stays clean.
+
+**Root cause:** On driver 610.43.03 (open kernel modules, GSP), *any* GPU register/NVML read stalls the entire machine ~4–5 ms (all cores simultaneously — verified with pinned RT canaries). GPU memory-clock/pstate switches trigger dense bursts of these stalls (10–35/s "storms") which overrun audio buffers. A power-limited GPU (e.g. base 80 W TGP with `nvidia-powerd` off) flaps clocks continuously, making the blips near-constant. `nvidia-powerd` itself is a *contributor* (its NVML polling adds ~1 stall per read) but **not** the root cause — disabling it does not stop the blips.
+
+**Workaround:** Pin the memory clock while gaming (stops the switches; audio clean and frame pacing solid at full performance):
+
+```bash
+sudo nvidia-smi -lmc 14001,14001   # lock while gaming
+sudo nvidia-smi -rmc               # unlock after (pinned mem clock raises idle power)
+```
+
+Keep `nvidia-powerd` **enabled** (full 175 W dynamic boost; disabling it worsens clock flapping under the 80 W base cap and doesn't help audio). The [nvidia-state-tray](https://github.com/radical89/nvidia-state-tray) right-click menu has a lock toggle (needs the sudoers rule in its README).
+
+**Diagnosis tooling:** `tools/latency-canary.py` (RT stall detector) and `tools/blip-monitor.py` (wall-clock log of stalls + PipeWire xruns + GPU state) in this repo. Method: run the monitor while gaming, have a listener call out blips, correlate timestamps against stall storms and mem-clock transitions.
 
 ---
 
